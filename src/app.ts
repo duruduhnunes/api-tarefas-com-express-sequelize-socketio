@@ -28,6 +28,8 @@ const app = express();
 
 app.use(express.json());
 
+app.use(express.static("public"));
+
 app.use((req: Request, res: Response, next: NextFunction) => {
   const inicio = Date.now();
   res.on("finish", () => {

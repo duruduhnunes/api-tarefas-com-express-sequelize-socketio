@@ -1,0 +1,86 @@
+<!doctype html>
+<html lang="pt-BR">
+  <head>
+    <meta charset="utf-8" />
+    <title>Tarefas em tempo real</title>
+  </head>
+  <body>
+    <h1>Tarefas</h1>
+
+    <form id="form">
+      <input id="titulo" placeholder="Nova tarefa" required />
+      <button>Adicionar</button>
+    </form>
+
+    <ul id="lista"></ul>
+
+    <h3>Eventos</h3>
+    <pre id="log"></pre>
+
+    <script src="/socket.io/socket.io.js"></script>
+    <script>
+      const lista = document.getElementById("lista");
+      const log = document.getElementById("log");
+      const tarefas = new Map();
+
+      function render() {
+        lista.innerHTML = "";
+        for (const t of tarefas.values()) {
+          const li = document.createElement("li");
+          li.textContent = `${t.concluida ? "✅" : "⬜"} #${t.id} ${t.titulo}`;
+          lista.appendChild(li);
+        }
+      }
+
+      function registrar(msg) {
+        log.textContent = `${new Date().toLocaleTimeString()} ${msg}\n` + log.textContent;
+      }
+
+      async function carregar() {
+        const resp = await fetch("/tarefas");
+        const dados = await resp.json();
+        tarefas.clear();
+        dados.forEach((t) => tarefas.set(t.id, t));
+        render();
+      }
+
+      const socket = io();
+
+      socket.on("connect", () => {
+        registrar(`conectado (${socket.id})`);
+        carregar();
+      });
+
+      socket.on("disconnect", (motivo) => registrar(`desconectado: ${motivo}`));
+
+      socket.on("tarefa:criada", (t) => {
+        tarefas.set(t.id, t);
+        render();
+        registrar(`criada #${t.id}`);
+      });
+
+      socket.on("tarefa:atualizada", (t) => {
+        tarefas.set(t.id, t);
+        render();
+        registrar(`atualizada #${t.id}`);
+      });
+
+      socket.on("tarefa:removida", ({ id }) => {
+        tarefas.delete(id);
+        render();
+        registrar(`removida #${id}`);
+      });
+
+      document.getElementById("form").addEventListener("submit", async (e) => {
+        e.preventDefault();
+        const input = document.getElementById("titulo");
+        await fetch("/tarefas", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ titulo: input.value }),
+        });
+        input.value = "";
+      });
+    </script>
+  </body>
+</html>
