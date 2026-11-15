@@ -3,6 +3,8 @@ import express, {
   type Response,
   type NextFunction,
 } from "express";
+import { Tarefa } from "./models/tarefa.js";
+import { Op, ValidationError } from "sequelize";
 
 class ErroHttp extends Error {
   status: number;
@@ -10,14 +12,6 @@ class ErroHttp extends Error {
     super(message);
     this.status = status;
   }
-}
-
-interface Tarefa {
-  id: number;
-  titulo: string;
-  descricao: string | null;
-  concluida: boolean;
-  criadaEm: string;
 }
 
 type CriarTarefaBody = { titulo?: string; descricao?: string };
@@ -42,75 +36,66 @@ app.use((req: Request, res: Response, next: NextFunction) => {
   next();
 });
 
-const tarefas: Tarefa[] = [];
-let proximoId = 1;
-
-function buscarOufalhar(idParam: string): Tarefa {
-  const id = Number(idParam);
-  const tarefa = tarefas.find((t) => t.id === id);
+async function buscarOufalhar(idParam: string): Promise<Tarefa> {
+  const tarefa = await Tarefa.findByPk(Number(idParam));
   if (!tarefa) {
     throw new ErroHttp(404, "Tarefa não encontrada");
   }
   return tarefa;
 }
 
-app.get("/tarefas", (_req: Request, res: Response) => {
+app.get("/tarefas", async (req: Request, res: Response) => {
+  const { concluida, busca } = req.query;
+
+  const tarefas = await Tarefa.findAll({
+    where: {
+      ...(concluida === "true" || concluida === "false"
+        ? { concluida: concluida === "true" }
+        : {}),
+      ...(typeof busca === "string" && busca
+        ? { titulo: { [Op.like]: `%${busca}%` } }
+        : {}),
+    },
+    order: [["id", "ASC"]],
+  });
   res.json(tarefas);
 });
 
-app.post("/tarefas", (req: Request<{}, {}, CriarTarefaBody>, res: Response) => {
-  const { titulo, descricao } = req.body ?? {};
+app.post(
+  "/tarefas",
+  async (req: Request<{}, {}, CriarTarefaBody>, res: Response) => {
+    const { titulo, descricao } = req.body ?? {};
+    const tarefa = await Tarefa.create({ titulo: titulo as string, descricao });
+    res.status(201).json(tarefa);
+  },
+);
 
-  if (!titulo) {
-    res.status(400).json({ erro: 'O campo "titulo" é obrigatório' });
-    return;
-  }
-
-  const tarefa: Tarefa = {
-    id: proximoId++,
-    titulo,
-    descricao: descricao ?? null,
-    concluida: false,
-    criadaEm: new Date().toISOString(),
-  };
-
-  tarefas.push(tarefa);
-  res.status(201).json(tarefa);
-});
-
-app.get("/tarefas/:id", (req: Request<{ id: string }>, res: Response) => {
-  res.json(buscarOufalhar(req.params.id));
+app.get("/tarefas/:id", async (req: Request<{ id: string }>, res: Response) => {
+  res.json(await buscarOufalhar(req.params.id));
 });
 
 app.patch(
   "/tarefas/:id",
-  (req: Request<{ id: string }, {}, AtualizartarefaBody>, res: Response) => {
-    const tarefa = buscarOufalhar(req.params.id);
-    const { titulo, descricao, concluida } = req.body ?? {};
-
-    if (titulo !== undefined) {
-      if (!titulo)
-        throw new ErroHttp(400, 'O campo "titulo" nao pode ficar vazio');
-      tarefa.titulo = titulo;
-    }
-
-    if (descricao !== undefined) {
-      tarefa.descricao = descricao;
-    }
-
-    if (concluida !== undefined) {
-      tarefa.concluida = concluida;
-    }
-
+  async (
+    req: Request<{ id: string }, {}, AtualizartarefaBody>,
+    res: Response,
+  ) => {
+    const tarefa = await buscarOufalhar(req.params.id);
+    await tarefa.update(req.body ?? {}, {
+      fields: ["titulo", "descricao", "concluida"],
+    });
     res.json(tarefa);
   },
 );
 
-app.delete("/tarefas/:id", (req: Request<{ id: string }>, res: Response) => {
-  const tarefa = buscarOufalhar(req.params.id);
-  tarefas.splice(tarefas.indexOf(tarefa), 1);
-  res.status(200).send();
-});
+app.delete(
+  "/tarefas/:id",
+  async (req: Request<{ id: string }>, res: Response) => {
+    const tarefa = await buscarOufalhar(req.params.id);
+    await tarefa.destroy();
+    res.status(200).send();
+  },
+);
 
 app.use((req: Request, _res: Response, next: NextFunction) => {
   next(
@@ -119,6 +104,14 @@ app.use((req: Request, _res: Response, next: NextFunction) => {
 });
 
 app.use((err: any, _req: Request, res: Response, _next: NextFunction) => {
+  if (err instanceof ValidationError) {
+    res.status(400).json({
+      erro: "Dados invalidos",
+      detalhes: err.errors.map((e) => e.message),
+    });
+    return;
+  }
+
   const status = err.status ?? 500;
   if (status >= 500) {
     console.error(err);
