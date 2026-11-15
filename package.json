@@ -5,12 +5,13 @@
   "main": "index.js",
   "type": "module",
   "scripts": {
-  "dev": "tsx watch src/server.ts",
-  "build": "tsc",
-  "start": "node dist/src/server.js",
-  "typecheck": "tsc --noEmit",
-  "cliente": "tsx scripts/cliente-socket.ts"
-},
+    "dev": "tsx watch src/server.ts",
+    "build": "tsc",
+    "start": "node dist/src/server.js",
+    "typecheck": "tsc --noEmit",
+    "cliente": "tsx scripts/cliente-socket.ts",
+    "test": "NODE_ENV=test DB_STORAGE=:memory: mocha"
+  },
   "keywords": [],
   "author": "",
   "license": "ISC",
@@ -21,6 +22,7 @@
     "sqlite3": "^6.0.1"
   },
   "devDependencies": {
+    "@types/chai": "^5.2.3",
     "@types/express": "^5.0.6",
     "@types/mocha": "^10.0.10",
     "@types/node": "^26.6.6",

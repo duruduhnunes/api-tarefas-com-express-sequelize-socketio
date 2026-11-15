@@ -1,4 +1,3 @@
-
 {
   "compilerOptions": {
     "target": "ES2022",
@@ -10,6 +9,7 @@
     "outDir": "dist",
     "rootDir": ".",
     "lib": ["ES2022"],
+    "types": ["node", "mocha"]
   },
-  "include": ["src", "test", "scripts"],
+  "include": ["src", "test", "scripts"]
 }

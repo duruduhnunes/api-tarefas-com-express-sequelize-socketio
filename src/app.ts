@@ -30,15 +30,17 @@ app.use(express.json());
 
 app.use(express.static("public"));
 
-app.use((req: Request, res: Response, next: NextFunction) => {
-  const inicio = Date.now();
-  res.on("finish", () => {
-    console.log(
-      `${req.method} ${req.originalUrl} ${res.statusCode} - ${Date.now() - inicio}ms`,
-    );
+if (process.env.NODE_ENV !== "test") {
+  app.use((req: Request, res: Response, next: NextFunction) => {
+    const inicio = Date.now();
+    res.on("finish", () => {
+      console.log(
+        `${req.method} ${req.originalUrl} ${res.statusCode} - ${Date.now() - inicio}ms`,
+      );
+    });
+    next();
   });
-  next();
-});
+}
 
 async function buscarOufalhar(idParam: string): Promise<Tarefa> {
   const tarefa = await Tarefa.findByPk(Number(idParam));
