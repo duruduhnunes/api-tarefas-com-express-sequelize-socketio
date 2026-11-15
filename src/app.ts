@@ -5,6 +5,8 @@ import express, {
 } from "express";
 import { Tarefa } from "./models/tarefa.js";
 import { Op, ValidationError } from "sequelize";
+import { emitir } from "./realtime.js";
+import { emit } from "node:cluster";
 
 class ErroHttp extends Error {
   status: number;
@@ -66,6 +68,7 @@ app.post(
   async (req: Request<{}, {}, CriarTarefaBody>, res: Response) => {
     const { titulo, descricao } = req.body ?? {};
     const tarefa = await Tarefa.create({ titulo: titulo as string, descricao });
+    emitir("tarefa:criada", tarefa.toJSON());
     res.status(201).json(tarefa);
   },
 );
@@ -84,6 +87,7 @@ app.patch(
     await tarefa.update(req.body ?? {}, {
       fields: ["titulo", "descricao", "concluida"],
     });
+    emitir("tarefa:atualizada", tarefa.toJSON());
     res.json(tarefa);
   },
 );
@@ -93,6 +97,7 @@ app.delete(
   async (req: Request<{ id: string }>, res: Response) => {
     const tarefa = await buscarOufalhar(req.params.id);
     await tarefa.destroy();
+    emitir("tarefa:removida", { id: tarefa.id });
     res.status(200).send();
   },
 );
